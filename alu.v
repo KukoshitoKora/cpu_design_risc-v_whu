@@ -1,126 +1,123 @@
 module alu(
-	   ALU_DA,
-       ALU_DB,
-       ALU_CTL,
-       ALU_ZERO,
-       ALU_OverFlow,
-       ALU_DC   
+       alu_da,
+       alu_db,
+       alu_ctl,
+       alu_zero,
+       alu_overflow,
+       alu_dc   
         );
-	  input [31:0]    ALU_DA;
-    input [31:0]    ALU_DB;
-    input [3:0]     ALU_CTL;
-    output          ALU_ZERO;
-    output          ALU_OverFlow;
-    output reg [31:0]   ALU_DC;
+	  input [31:0]    alu_da;
+    input [31:0]    alu_db;
+    input [3:0]     alu_ctl;
+    output          alu_zero;
+    output          alu_overflow;
+    output reg [31:0]   alu_dc;
 		   
-wire SUBctr;
-wire SIGctr;
-wire Ovctr;
-wire [1:0] Opctr;
-wire [1:0] Logicctr;
-wire [1:0] Shiftctr;
+wire subctr;
+wire sigctr;
+wire ovctr;
+wire [1:0] opctr;
+wire [1:0] logicctr;
+wire [1:0] shiftctr;
 
-assign SUBctr = (~ ALU_CTL[3]  & ~ALU_CTL[2]  & ALU_CTL[1]) | ( ALU_CTL[3]  & ~ALU_CTL[2]);
-assign Opctr = ALU_CTL[3:2];
-assign Ovctr = ALU_CTL[0] & ~ ALU_CTL[3]  & ~ALU_CTL[2] ;
-assign SIGctr = ALU_CTL[0];
-assign Logicctr = ALU_CTL[1:0]; 
-assign Shiftctr = ALU_CTL[1:0]; 
+assign subctr = (~ alu_ctl[3]  & ~alu_ctl[2]  & alu_ctl[1]) | ( alu_ctl[3]  & ~alu_ctl[2]);
+assign opctr = alu_ctl[3:2];
+assign ovctr = alu_ctl[0] & ~ alu_ctl[3]  & ~alu_ctl[2] ;
+assign sigctr = alu_ctl[0];
+assign logicctr = alu_ctl[1:0]; 
+assign shiftctr = alu_ctl[1:0]; 
 
 reg [31:0] logic_result;
 
 always@(*) begin
-    case(Logicctr)
-	2'b00:logic_result = ALU_DA & ALU_DB;
-	2'b01:logic_result = ALU_DA | ALU_DB;
-	2'b10:logic_result = ALU_DA ^ ALU_DB;
-	2'b11:logic_result = ~(ALU_DA | ALU_DB);
+    case(logicctr)
+	2'b00:logic_result = alu_da & alu_db;
+	2'b01:logic_result = alu_da | alu_db;
+	2'b10:logic_result = alu_da ^ alu_db;
+	2'b11:logic_result = ~(alu_da | alu_db);
 	endcase
 end 
 
-wire [4:0]     ALU_SHIFT;
+wire [4:0]     alu_shift;
 wire [31:0] shift_result;
-assign ALU_SHIFT=ALU_DB[4:0];
+assign alu_shift=alu_db[4:0];
 
-Shifter Shifter(.ALU_DA(ALU_DA),
-                .ALU_SHIFT(ALU_SHIFT),
-				.Shiftctr(Shiftctr),
+shifter shifter(.alu_da(alu_da),
+                .alu_shift(alu_shift),
+				.shiftctr(shiftctr),
 				.shift_result(shift_result));
 
-wire [31:0] BIT_M,XOR_M;
-wire ADD_carry,ADD_OverFlow;
-wire [31:0] ADD_result;
+wire [31:0] bit_m,xor_m;
+wire add_carry,add_overflow;
+wire [31:0] add_result;
 
-assign BIT_M={32{SUBctr}};
-assign XOR_M=BIT_M^ALU_DB;
+assign bit_m={32{subctr}};
+assign xor_m=bit_m^alu_db;
 
-Adder Adder(.A(ALU_DA),
-            .B(XOR_M),
-			.Cin(SUBctr),
-			.ALU_CTL(ALU_CTL),
-			.ADD_carry(ADD_carry),
-			.ADD_OverFlow(ADD_OverFlow),
-			.ADD_zero(ALU_ZERO),
-			.ADD_result(ADD_result));
+adder adder(.a(alu_da),
+            .b(xor_m),
+			.cin(subctr),
+			.alu_ctl(alu_ctl),
+			.add_carry(add_carry),
+			.add_overflow(add_overflow),
+			.add_zero(alu_zero),
+			.add_result(add_result));
 
-assign ALU_OverFlow = ADD_OverFlow & Ovctr;
+assign alu_overflow = add_overflow & ovctr;
 
-wire [31:0] SLT_result;
-wire LESS_M1,LESS_M2,LESS_S,SLT_M;
+wire [31:0] slt_result;
+wire less_m1,less_m2,less_s,slt_m;
 
-assign LESS_M1 = ADD_carry ^ SUBctr;
-assign LESS_M2 = ADD_OverFlow ^ ADD_result[31];
-assign LESS_S = (SIGctr==1'b0)?LESS_M1:LESS_M2;
-assign SLT_result = (LESS_S)?32'h00000001:32'h00000000;
+assign less_m1 = add_carry ^ subctr;
+assign less_m2 = add_overflow ^ add_result[31];
+assign less_s = (sigctr==1'b0)?less_m1:less_m2;
+assign slt_result = (less_s)?32'h00000001:32'h00000000;
 
 always @(*) 
 begin
-  case(Opctr)
-     2'b00:ALU_DC<=ADD_result;
-     2'b01:ALU_DC<=logic_result;
-     2'b10:ALU_DC<=SLT_result;
-     2'b11:ALU_DC<=shift_result; 
+  case(opctr)
+     2'b00:alu_dc<=add_result;
+     2'b01:alu_dc<=logic_result;
+     2'b10:alu_dc<=slt_result;
+     2'b11:alu_dc<=shift_result; 
   endcase
 end
 endmodule
 
-module Shifter(input [31:0] ALU_DA,
-               input [4:0] ALU_SHIFT,
-			   input [1:0] Shiftctr,
+module shifter(input [31:0] alu_da,
+               input [4:0] alu_shift,
+			   input [1:0] shiftctr,
 			   output reg [31:0] shift_result);
 			   
 
      wire [5:0] shift_n;
-	 assign shift_n = 6'd32 - Shiftctr;
+	 assign shift_n = 6'd32 - shiftctr;
      always@(*) begin
-	   case(Shiftctr)
-	   2'b00:shift_result = ALU_DA << ALU_SHIFT;
-	   2'b01:shift_result = ALU_DA >> ALU_SHIFT;
-	   2'b10:shift_result = ({32{ALU_DA[31]}} << shift_n) | (ALU_DA >> ALU_SHIFT);
-	   default:shift_result = ALU_DA;
+	   case(shiftctr)
+	   2'b00:shift_result = alu_da << alu_shift;
+	   2'b01:shift_result = alu_da >> alu_shift;
+	   2'b10:shift_result = ({32{alu_da[31]}} << shift_n) | (alu_da >> alu_shift);
+	   default:shift_result = alu_da;
 	   endcase
 	 end
 
 
 endmodule
 
-module Adder(input [31:0] A,
-             input [31:0] B,
-			 input Cin,
-			 input [3:0] ALU_CTL,
-			 output ADD_carry,
-			 output ADD_OverFlow,
-			 output ADD_zero,
-			 output [31:0] ADD_result);
+module adder(input [31:0] a,
+             input [31:0] b,
+			 input cin,
+			 input [3:0] alu_ctl,
+			 output add_carry,
+			 output add_overflow,
+			 output add_zero,
+			 output [31:0] add_result);
 
 
-    assign {ADD_carry,ADD_result}=A+B+Cin;
-   assign ADD_zero = ~(|ADD_result);
-   assign ADD_OverFlow=((ALU_CTL==4'b0001) & ~A[31] & ~B[31] & ADD_result[31]) 
-                      | ((ALU_CTL==4'b0001) & A[31] & B[31] & ~ADD_result[31])
-                      | ((ALU_CTL==4'b0011) & A[31] & ~B[31] & ~ADD_result[31]) 
-					  | ((ALU_CTL==4'b0011) & ~A[31] & B[31] & ADD_result[31]);
+    assign {add_carry,add_result}=a+b+cin;
+   assign add_zero = ~(|add_result);
+   assign add_overflow=((alu_ctl==4'b0001) & ~a[31] & ~b[31] & add_result[31]) 
+                      | ((alu_ctl==4'b0001) & a[31] & b[31] & ~add_result[31])
+                      | ((alu_ctl==4'b0011) & a[31] & ~b[31] & ~add_result[31]) 
+					  | ((alu_ctl==4'b0011) & ~a[31] & b[31] & add_result[31]);
 endmodule
-
-
-
